@@ -170,7 +170,7 @@ static void* find_fit(size_t asize){
     *}
     */
 //################################################################################
-    // // 이 아래것도 first fit인데 이건 성공한거
+    // 이 아래것도 first fit인데 이건 성공한거
     // void* bp = heap_listp;
     // while(GET_SIZE(HDRP(bp)) > 0){
     //     if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
@@ -181,42 +181,42 @@ static void* find_fit(size_t asize){
     // }
     // return NULL;
 //#################################################################################
-    // 이건 next_fit
-    void* start = nf_check;
-    void* bp = start;
-    while(GET_SIZE(HDRP(bp)) > 0){
-        if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
-            nf_check = bp;
-            return bp;
-        }
-        bp = NEXT_BLKP(bp);
-    }
-    for(bp = heap_listp; bp != start; bp = NEXT_BLKP(bp)){
-        if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
-            nf_check = bp;
-            return bp;
-        }
-    }
-    return NULL;
-//#################################################################################
-    // // 이건 best-fit
-    // void* best_bp = NULL; 
-    // void* bp = heap_listp;
+    // // 이건 next_fit
+    // void* start = nf_check;
+    // void* bp = start;
     // while(GET_SIZE(HDRP(bp)) > 0){
-    //     if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))){
-    //         if(best_bp == NULL){
-    //             best_bp = bp;
-    //         }
-    //         else{
-    //             if(GET_SIZE(HDRP(best_bp)) > GET_SIZE(HDRP(bp))){
-    //                 best_bp = bp;
-    //             }
-    //         }
+    //     if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
+    //         nf_check = bp;
+    //         return bp;
     //     }
     //     bp = NEXT_BLKP(bp);
     // }
+    // for(bp = heap_listp; bp != start; bp = NEXT_BLKP(bp)){
+    //     if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
+    //         nf_check = bp;
+    //         return bp;
+    //     }
+    // }
+    // return NULL;
+//#################################################################################
+    // 이건 best-fit
+    void* best_bp = NULL; 
+    void* bp = heap_listp;
+    while(GET_SIZE(HDRP(bp)) > 0){
+        if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))){
+            if(best_bp == NULL){
+                best_bp = bp;
+            }
+            else{
+                if(GET_SIZE(HDRP(best_bp)) > GET_SIZE(HDRP(bp))){
+                    best_bp = bp;
+                }
+            }
+        }
+        bp = NEXT_BLKP(bp);
+    }
     
-    // return best_bp;
+    return best_bp;
     
 //#################################################################################
 
@@ -256,7 +256,7 @@ static void* coalesce(void *bp){
     size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
     size_t size = GET_SIZE(HDRP(bp));
-    void* next_bp;
+    void* next_bp = NULL;
     
 
     if(prev_alloc && next_alloc){
@@ -306,25 +306,86 @@ void *mm_realloc(void *ptr, size_t size)
         return NULL;
     }
 
-    size_t old_b = GET_SIZE(HDRP(ptr)); //기존 블록의 총 크기
-    size_t old_p = old_b - DSIZE; //기존 블록의 페이로드 크기(총크기에서 헤더와 풋터를 DSIZE로 뺸다.)
     
-    size_t copy_size; //복사할 바이트 수 결정
-    if(size < old_p){
-        copy_size = size; //새로 요구한 크기가 더 작으면 그 만큼 복사
+    size_t old_size = GET_SIZE(HDRP(ptr)); //기존 블록의 총 크기
+    size_t old_payload = old_size - DSIZE; //기존 블록의 페이로드 크기
+
+    size_t prev_alloc = GET_ALLOC(HDRP(PREV_BLKP(ptr)));
+    size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(ptr)));
+    void* prevptr = NULL;
+    void* nextptr = NULL;
+
+    size_t prev_size = GET_SIZE(HDRP(PREV_BLKP(ptr)));
+    size_t next_size = GET_SIZE(HDRP(NEXT_BLKP(ptr)));
+
+
+    size_t asize; // 패딩을 합시다~~
+    if(size <= DSIZE){
+        asize = 2*DSIZE;
     }
     else{
-        copy_size = old_p; //더 크면 페이로드만큼만 복사
+        asize = DSIZE * ((size + (DSIZE) + (DSIZE-1)) / DSIZE);
     }
 
 
-//과거########################################################################
-    void *newptr; // 새블록 할당
-    newptr = mm_malloc(size);
-    if (newptr == NULL) {return NULL;} //힙 확장 실패
+    // size가 기존 사이즈보다 크지 작은지 확인
+    
+    
+    if(prev_alloc && next_alloc){ //둘다사용중일경우
+        if(old_size >= asize){ //축소의 경우
+            PUT(HDRP(ptr), PACK(old_size, 0));
+            PUT(FTRP(ptr), PACK(old_size, 0));
+            place(ptr, asize);
+            return ptr;
+        }
+    }
 
-    memcpy(newptr, ptr, copy_size); // 데이터 복사 후 이전 블록 반환
+
+    else if(!prev_alloc && next_alloc){ // 전은 사용 안하고 다음것만 사용 중
+        prevptr = PREV_BLKP(ptr);
+        size_t new_size = prev_size + old_size;
+        if(GET_SIZE(HDRP(prevptr)) + old_size >= asize){
+            PUT(HDRP(prevptr), PACK(new_size, 0));
+            PUT(FTRP(ptr), PACK(new_size, 0));
+
+            memmove(prevptr, ptr, old_payload);
+
+            place(prevptr, asize);
+            return prevptr;
+        }
+    }
+    else if(prev_alloc && !next_alloc){ // 전은 사용하고 다음것은 사용 안함
+        size_t new_size = old_size + next_size;
+        nextptr = NEXT_BLKP(ptr);
+        if(GET_SIZE(HDRP(nextptr)) + old_size >= asize){
+            PUT(HDRP(ptr), PACK(new_size, 0));
+            PUT(FTRP(ptr), PACK(new_size, 0));
+
+            place(ptr, asize);
+            return ptr;
+        }
+
+    }
+    else if(!prev_alloc && !next_alloc){ // 둘 다 사용중
+        prevptr = PREV_BLKP(ptr);
+        nextptr = NEXT_BLKP(ptr);
+        size_t new_size = prev_size + old_size + next_size;
+        if(GET_SIZE(HDRP(prevptr)) + GET_SIZE(HDRP(nextptr)) + old_size >= asize){
+            PUT(HDRP(prevptr), PACK(new_size, 0));
+            PUT(FTRP(nextptr), PACK(new_size, 0));
+
+            memmove(prevptr,ptr, old_payload);
+
+            place(prevptr, asize);
+            return prevptr;
+        } 
+    }
+
+    
+    void* newptr = mm_malloc(size);
+    if (newptr == NULL) {return NULL;} //힙 확장 실패
+    size_t copy = old_payload < size ? old_payload : size;
+    memcpy(newptr, ptr, copy);
     mm_free(ptr);
     return newptr;
-//########################################################################
 }
