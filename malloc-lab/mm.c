@@ -186,14 +186,14 @@ static void* find_fit(size_t asize){
     void* bp = start;
     while(GET_SIZE(HDRP(bp)) > 0){
         if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
-            nf_check = NEXT_BLKP(bp);
+            nf_check = bp;
             return bp;
         }
         bp = NEXT_BLKP(bp);
     }
     for(bp = heap_listp; bp != start; bp = NEXT_BLKP(bp)){
         if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
-            nf_check = NEXT_BLKP(bp);
+            nf_check = bp;
             return bp;
         }
     }
