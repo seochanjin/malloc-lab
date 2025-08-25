@@ -48,7 +48,7 @@
 static void* extend_heap(size_t words);
 static void* coalesce(void *bp);
 static void* find_fit(size_t asize);
-static void* place(void* bp, size_t asize);
+static void place(void* bp, size_t asize);
 
 /*********************************************************
  * NOTE TO STUDENTS: Before you do anything else, please
@@ -77,7 +77,8 @@ team_t team = {
 /*
  * mm_init - initialize the malloc package.
  */
-static char* heap_listp;
+static char* heap_listp = NULL;
+static char* nf_check = NULL;
 
 int mm_init(void)
 {
@@ -94,6 +95,7 @@ int mm_init(void)
         return -1;
     }
 
+    nf_check = heap_listp;
     return 0;
 }
 
@@ -122,17 +124,6 @@ static void* extend_heap(size_t words){
  */
 void *mm_malloc(size_t size)
 {
-    /* 기존에 있던거 비효율적이라고 하는데?
-    *int newsize = ALIGN(size + SIZE_T_SIZE);
-    *void *p = mem_sbrk(newsize);
-    *if (p == (void *)-1)
-    *    return NULL;
-    *else
-    *{
-    *    *(size_t *)p = size;
-    *    return (void *)((char *)p + SIZE_T_SIZE);
-    *}
-    */
     size_t asize; // 블록 사이즈 정의
     size_t extendsize; // 사이즈가 맞지 않을 경우 확장해야 하는 핏의 크기?
     char *bp;
@@ -165,21 +156,9 @@ void *mm_malloc(size_t size)
 
 // 꼭 맞는 것을 찾는다? 아니지 이건 asize보다 크기만 하면 바로 거기다 할당하는거지
 static void* find_fit(size_t asize){
-/*
-* for 문?
-* 일단 시작점이 heap_listp 인거 같긴한데?
-*/
-    void* bp;
-    
-    // for(bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)){
-    //     if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))){
-    //         return bp;
-    //     }
-    // }
-    // return NULL;
-
-    bp = heap_listp;
+//################################################################################
     /* 처음부터 NULL이 나와서 다음이 없다. 그런데 왜 돌아간걸까? 효율이 조졌지만 돌아간 흔적이 있다. 좀비 코드
+    * 이건 first fit
     *while(GET_SIZE(HDRP(bp))>0){
     *    if(GET_ALLOC(HDRP(bp)) == 1){
     *        return NULL; 
@@ -190,25 +169,71 @@ static void* find_fit(size_t asize){
     *    bp = NEXT_BLKP(bp);
     *}
     */
+//################################################################################
+    // // 이 아래것도 first fit인데 이건 성공한거
+    // void* bp = heap_listp;
+    // while(GET_SIZE(HDRP(bp)) > 0){
+    //     if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
+    //         return bp;
+    //     }
+
+    //     bp = NEXT_BLKP(bp);
+    // }
+    // return NULL;
+//#################################################################################
+    // 이건 next_fit
+    void* start = nf_check;
+    void* bp = start;
     while(GET_SIZE(HDRP(bp)) > 0){
         if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
+            nf_check = NEXT_BLKP(bp);
             return bp;
         }
-
         bp = NEXT_BLKP(bp);
     }
+    for(bp = heap_listp; bp != start && GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)){
+        if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
+            nf_check = NEXT_BLKP(bp);
+            return bp;
+        }
+    }
     return NULL;
+//#################################################################################
+    // // 이건 best-fit
+    // void* best_bp = NULL; 
+    // void* bp = heap_listp;
+    // while(GET_SIZE(HDRP(bp)) > 0){
+    //     if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))){
+    //         if(best_bp == NULL){
+    //             best_bp = bp;
+    //         }
+    //         else{
+    //             if(GET_SIZE(HDRP(best_bp)) > GET_SIZE(HDRP(bp))){
+    //                 best_bp = bp;
+    //             }
+    //         }
+    //     }
+    //     bp = NEXT_BLKP(bp);
+    // }
+    // if(best_bp != NULL){
+    //     return best_bp;
+    // }
+    // else{
+    //     return NULL;
+    // }
+//#################################################################################
+
 }
 
-static void* place(void* bp, size_t asize){
+static void place(void* bp, size_t asize){
     size_t csize = GET_SIZE(HDRP(bp));
 
     if((csize - asize) >= (2*DSIZE)) {
         PUT(HDRP(bp), PACK(asize, 1));
         PUT(FTRP(bp), PACK(asize, 1));
-        bp = NEXT_BLKP(bp); // 난 여기까지만 했음. 하고 나서 뒤에걸 어떻게 하지 해버림
-        PUT(HDRP(bp), PACK(csize - asize, 0));
-        PUT(FTRP(bp), PACK(csize - asize, 0));
+        void* nbp = NEXT_BLKP(bp); // 난 여기까지만 했음. 하고 나서 뒤에걸 어떻게 하지 해버림
+        PUT(HDRP(nbp), PACK(csize - asize, 0));
+        PUT(FTRP(nbp), PACK(csize - asize, 0));
     }
     else{
         PUT(HDRP(bp), PACK(csize, 1));
@@ -234,27 +259,41 @@ static void* coalesce(void *bp){
     size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
     size_t size = GET_SIZE(HDRP(bp));
+    void* next_bp;
+    
 
     if(prev_alloc && next_alloc){
+        next_bp = bp;
         return bp;
     }
     else if(prev_alloc && !next_alloc){
         size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
         PUT(HDRP(bp), PACK(size, 0));
         PUT(FTRP(bp), PACK(size, 0));
+        next_bp = bp;
     }
     else if(!prev_alloc && next_alloc){
         size += GET_SIZE(HDRP(PREV_BLKP(bp)));
         PUT(FTRP(bp), PACK(size, 0));
         PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
         bp = PREV_BLKP(bp);
+        next_bp = bp;
     }
     else if(!prev_alloc && !next_alloc){
         size += GET_SIZE(FTRP(PREV_BLKP(bp))) + GET_SIZE(HDRP(NEXT_BLKP(bp)));
         PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
         PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
         bp = PREV_BLKP(bp);
+        next_bp = bp;
     }
+
+    void* start = next_bp;
+    void* end = start + GET_SIZE(HDRP(next_bp));
+
+    if(( nf_check >= start) && ( nf_check < end)){
+        nf_check = next_bp;
+    }
+    
     return bp;
 }
 
@@ -264,17 +303,31 @@ static void* coalesce(void *bp){
  */
 void *mm_realloc(void *ptr, size_t size)
 {
-    void *oldptr = ptr;
-    void *newptr;
-    size_t copySize;
-
-    newptr = mm_malloc(size);
-    if (newptr == NULL)
+    if(ptr == NULL){return mm_malloc(size);} //ptr이 null이면 malloc처럼 동작
+    if(size == 0){ //size가 0이면 free 하고 null 반환
+        mm_free(ptr);
         return NULL;
-    copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE);
-    if (size < copySize)
-        copySize = size;
-    memcpy(newptr, oldptr, copySize);
-    mm_free(oldptr);
+    }
+
+    size_t old_b = GET_SIZE(HDRP(ptr)); //기존 블록의 총 크기
+    size_t old_p = old_b - DSIZE; //기존 블록의 페이로드 크기(총크기에서 헤더와 풋터를 DSIZE로 뺸다.)
+    
+    size_t copy_size; //복사할 바이트 수 결정
+    if(size < old_p){
+        copy_size = size; //새로 요구한 크기가 더 작으면 그 만큼 복사
+    }
+    else{
+        copy_size = old_p; //더 크면 페이로드만큼만 복사
+    }
+
+
+//과거########################################################################
+    void *newptr; // 새블록 할당
+    newptr = mm_malloc(size);
+    if (newptr == NULL) {return NULL;} //힙 확장 실패
+
+    memcpy(newptr, ptr, copy_size); // 데이터 복사 후 이전 블록 반환
+    mm_free(ptr);
     return newptr;
+//########################################################################
 }
