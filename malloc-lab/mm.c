@@ -191,7 +191,7 @@ static void* find_fit(size_t asize){
         }
         bp = NEXT_BLKP(bp);
     }
-    for(bp = heap_listp; bp != start && GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)){
+    for(bp = heap_listp; bp != start; bp = NEXT_BLKP(bp)){
         if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
             nf_check = NEXT_BLKP(bp);
             return bp;
@@ -215,12 +215,9 @@ static void* find_fit(size_t asize){
     //     }
     //     bp = NEXT_BLKP(bp);
     // }
-    // if(best_bp != NULL){
-    //     return best_bp;
-    // }
-    // else{
-    //     return NULL;
-    // }
+    
+    // return best_bp;
+    
 //#################################################################################
 
 }
