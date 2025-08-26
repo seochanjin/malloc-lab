@@ -169,16 +169,16 @@ static void* find_fit(size_t asize){
     *}
     */
 //################################################################################
-    // // 이 아래것도 first fit인데 이건 성공한거
-    // void* bp = heap_listp;
-    // while(GET_SIZE(HDRP(bp)) > 0){
-    //     if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
-    //         return bp;
-    //     }
+    // 이 아래것도 first fit인데 이건 성공한거
+    void* bp = heap_listp;
+    while(GET_SIZE(HDRP(bp)) > 0){
+        if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
+            return bp;
+        }
 
-    //     bp = NEXT_BLKP(bp);
-    // }
-    // return NULL;
+        bp = NEXT_BLKP(bp);
+    }
+    return NULL;
 //#################################################################################
     // // 이건 next_fit
     // void* start = nf_check;
@@ -198,24 +198,24 @@ static void* find_fit(size_t asize){
     // }
     // return NULL;
 //#################################################################################
-    // 이건 best-fit
-    void* best_bp = NULL; 
-    void* bp = heap_listp;
-    while(GET_SIZE(HDRP(bp)) > 0){
-        if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))){
-            if(best_bp == NULL){
-                best_bp = bp;
-            }
-            else{
-                if(GET_SIZE(HDRP(best_bp)) > GET_SIZE(HDRP(bp))){
-                    best_bp = bp;
-                }
-            }
-        }
-        bp = NEXT_BLKP(bp);
-    }
+    // // 이건 best-fit
+    // void* best_bp = NULL; 
+    // void* bp = heap_listp;
+    // while(GET_SIZE(HDRP(bp)) > 0){
+    //     if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))){
+    //         if(best_bp == NULL){
+    //             best_bp = bp;
+    //         }
+    //         else{
+    //             if(GET_SIZE(HDRP(best_bp)) > GET_SIZE(HDRP(bp))){
+    //                 best_bp = bp;
+    //             }
+    //         }
+    //     }
+    //     bp = NEXT_BLKP(bp);
+    // }
     
-    return best_bp;
+    // return best_bp;
     
 //#################################################################################
 
