@@ -49,6 +49,8 @@ static void* extend_heap(size_t words);
 static void* coalesce(void *bp);
 static void* find_fit(size_t asize);
 static void place(void* bp, size_t asize);
+static void insert_node(void *bp);
+static void remove_node(void *bp);
 
 /*********************************************************
  * NOTE TO STUDENTS: Before you do anything else, please
@@ -79,6 +81,7 @@ team_t team = {
  */
 static char* heap_listp = NULL;
 static char* nf_check = NULL;
+static char* *free_listp = NULL;
 
 int mm_init(void)
 {
@@ -166,16 +169,16 @@ static void* find_fit(size_t asize){
     *}
     */
 //################################################################################
-    // 이 아래것도 first fit인데 이건 성공한거
-    void* bp = heap_listp;
-    while(GET_SIZE(HDRP(bp)) > 0){
-        if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
-            return bp;
-        }
+    // // 이 아래것도 first fit인데 이건 성공한거
+    // void* bp = heap_listp;
+    // while(GET_SIZE(HDRP(bp)) > 0){
+    //     if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
+    //         return bp;
+    //     }
 
-        bp = NEXT_BLKP(bp);
-    }
-    return NULL;
+    //     bp = NEXT_BLKP(bp);
+    // }
+    // return NULL;
 //#################################################################################
     // // 이건 next_fit
     // void* start = nf_check;
@@ -195,24 +198,24 @@ static void* find_fit(size_t asize){
     // }
     // return NULL;
 //#################################################################################
-    // // 이건 best-fit
-    // void* best_bp = NULL; 
-    // void* bp = heap_listp;
-    // while(GET_SIZE(HDRP(bp)) > 0){
-    //     if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))){
-    //         if(best_bp == NULL){
-    //             best_bp = bp;
-    //         }
-    //         else{
-    //             if(GET_SIZE(HDRP(best_bp)) > GET_SIZE(HDRP(bp))){
-    //                 best_bp = bp;
-    //             }
-    //         }
-    //     }
-    //     bp = NEXT_BLKP(bp);
-    // }
+    // 이건 best-fit
+    void* best_bp = NULL; 
+    void* bp = heap_listp;
+    while(GET_SIZE(HDRP(bp)) > 0){
+        if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))){
+            if(best_bp == NULL){
+                best_bp = bp;
+            }
+            else{
+                if(GET_SIZE(HDRP(best_bp)) > GET_SIZE(HDRP(bp))){
+                    best_bp = bp;
+                }
+            }
+        }
+        bp = NEXT_BLKP(bp);
+    }
     
-    // return best_bp;
+    return best_bp;
     
 //#################################################################################
 
@@ -325,9 +328,9 @@ void *mm_realloc(void *ptr, size_t size)
 
     if(!next_alloc && (old_size + next_size) >= asize){
         size_t new_size = old_size + next_size;
-        PUT(HDRP(ptr), PACK(new_size, 1));
-        PUT(FTRP(ptr), PACK(new_size, 1));
-        // place(ptr, asize);
+        PUT(HDRP(ptr), PACK(new_size, 0));
+        PUT(FTRP(ptr), PACK(new_size, 0));
+        place(ptr, asize);
 
         void* merged_start = ptr;
         void* merged_end   = (char*)ptr + new_size;  
@@ -346,10 +349,12 @@ void *mm_realloc(void *ptr, size_t size)
     if(!prev_alloc && (prev_size + old_size) >= asize){
         size_t new_size = prev_size + old_size;
         void* newptr = prev;
-        PUT(HDRP(newptr), PACK(new_size, 1));
-        PUT(FTRP(newptr), PACK(new_size, 1));
+        PUT(HDRP(newptr), PACK(new_size, 0));
+        PUT(FTRP(newptr), PACK(new_size, 0));
 
+        
         memmove(newptr, ptr, old_payload);
+        place(newptr, asize);
 
         void* merged_start = prev;
         void* merged_end   = (char*)prev + new_size;     
@@ -363,10 +368,12 @@ void *mm_realloc(void *ptr, size_t size)
     if(!prev_alloc && !next_alloc && (prev_size + old_size + next_size) >= asize){
         size_t new_size = prev_size + old_size + next_size;
         void* newptr = prev;
-        PUT(HDRP(newptr), PACK(new_size, 1));
-        PUT(FTRP(newptr), PACK(new_size, 1));
+        PUT(HDRP(newptr), PACK(new_size, 0));
+        PUT(FTRP(newptr), PACK(new_size, 0));
 
+        
         memmove(newptr, ptr, old_payload);
+        place(newptr, asize);
 
         void* merged_start = prev;
         void* merged_end   = (char*)prev + new_size;       
