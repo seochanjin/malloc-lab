@@ -48,7 +48,6 @@
 #define PTRSIZE ((size_t)sizeof(void*))
 #define PRED(bp) (*(void **)(bp)) //free 블록의 prev 포인터
 #define SUCC(bp) (*(void **)((char*)(bp) + PTRSIZE)) //free 블록의 next 포인터
-// #define MINBLK (WSIZE + PTRSIZE + PTRSIZE + WSIZE) // 최소 블록 크기(헤더 + pred + succ + 풋터 
 #define MINBLK ALIGN((size_t)WSIZE + PTRSIZE + PTRSIZE + (size_t)WSIZE) // 64-bit면 24B, 32-bit면 16B. ALIGN로 8바이트 정렬 보장
 
 
@@ -163,14 +162,14 @@ void *mm_malloc(size_t size)
 // 꼭 맞는 것을 찾는다? 아니지 이건 asize보다 크기만 하면 바로 거기다 할당하는거지
 static void* find_fit(size_t asize){
 //################################################################################
-    //first fit
-    void* bp;
-    for(bp = free_listp; bp != NULL; bp = SUCC(bp)){
-        if(asize <= GET_SIZE(HDRP(bp))){
-            return bp;
-        }
-    }
-    return NULL;
+    // //first fit
+    // void* bp;
+    // for(bp = free_listp; bp != NULL; bp = SUCC(bp)){
+    //     if(asize <= GET_SIZE(HDRP(bp))){
+    //         return bp;
+    //     }
+    // }
+    // return NULL;
 //#################################################################################
     // // 이건 next_fit
     // void* start = nf_check;
@@ -190,24 +189,21 @@ static void* find_fit(size_t asize){
     // }
     // return NULL;
 //#################################################################################
-    // // 이건 best-fit
-    // void* best_bp = NULL; 
-    // void* bp = heap_listp;
-    // while(GET_SIZE(HDRP(bp)) > 0){
-    //     if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))){
-    //         if(best_bp == NULL){
-    //             best_bp = bp;
-    //         }
-    //         else{
-    //             if(GET_SIZE(HDRP(best_bp)) > GET_SIZE(HDRP(bp))){
-    //                 best_bp = bp;
-    //             }
-    //         }
-    //     }
-    //     bp = NEXT_BLKP(bp);
-    // }
-    
-    // return best_bp;
+     // best-fit
+    void* bp = free_listp;
+    void* best = NULL;
+    size_t bestsz = (size_t)-1;
+    int scanned = 0;
+    int budget = 64;
+
+    for(; bp && scanned < budget; bp = SUCC(bp), ++scanned){
+        size_t sz = GET_SIZE(HDRP(bp));
+        if(sz >= asize){
+            if(sz == asize) return bp;
+            if(sz < bestsz) {best = bp; bestsz = sz;}
+        }
+    }
+    return best;
     
 //#################################################################################
 }
